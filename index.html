@@ -40,6 +40,52 @@
 
   footer{margin-top:18px;color:var(--muted);font-size:0.9rem;text-align:center}
   @media (max-width:640px){ .row{flex-direction:column;align-items:stretch} .row input{width:100%} }
+/* --- 追加：スマホ最適化 --- */
+@media (max-width: 480px) {
+  body { font-size: 15px; }
+
+  .wrap {
+    padding: 10px;
+  }
+
+  h1 {
+    font-size: 1.05rem;
+  }
+
+  .row {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .row input, .row button {
+    width: 100% !important;
+  }
+
+  table th, table td {
+    font-size: 0.85rem;
+    padding: 6px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr !important; /* 1列表示に */
+  }
+
+  .product-card {
+    padding: 10px;
+    font-size: 0.9rem;
+  }
+
+  #userNumber, #userName {
+    width: 100% !important;
+    margin-top: 6px;
+  }
+
+  #submitBtn {
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+  }
+}
 </style>
 </head>
 <body>
@@ -245,52 +291,7 @@ function tryLoadFromHash(){ const h = location.hash; if(h && h.startsWith('#data
 })();
 
 </script>
-/* --- 追加：スマホ最適化 --- */
-@media (max-width: 480px) {
-  body { font-size: 15px; }
 
-  .wrap {
-    padding: 10px;
-  }
-
-  h1 {
-    font-size: 1.05rem;
-  }
-
-  .row {
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .row input, .row button {
-    width: 100% !important;
-  }
-
-  table th, table td {
-    font-size: 0.85rem;
-    padding: 6px;
-  }
-
-  .grid {
-    grid-template-columns: 1fr !important; /* 1列表示に */
-  }
-
-  .product-card {
-    padding: 10px;
-    font-size: 0.9rem;
-  }
-
-  #userNumber, #userName {
-    width: 100% !important;
-    margin-top: 6px;
-  }
-
-  #submitBtn {
-    width: 100%;
-    padding: 12px;
-    font-size: 1rem;
-  }
-}
 
 </body>
 </html>
