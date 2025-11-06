@@ -40,52 +40,6 @@
 
   footer{margin-top:18px;color:var(--muted);font-size:0.9rem;text-align:center}
   @media (max-width:640px){ .row{flex-direction:column;align-items:stretch} .row input{width:100%} }
-/* --- 追加：スマホ最適化 --- */
-@media (max-width: 480px) {
-  body { font-size: 15px; }
-
-  .wrap {
-    padding: 10px;
-  }
-
-  h1 {
-    font-size: 1.05rem;
-  }
-
-  .row {
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .row input, .row button {
-    width: 100% !important;
-  }
-
-  table th, table td {
-    font-size: 0.85rem;
-    padding: 6px;
-  }
-
-  .grid {
-    grid-template-columns: 1fr !important; /* 1列表示に */
-  }
-
-  .product-card {
-    padding: 10px;
-    font-size: 0.9rem;
-  }
-
-  #userNumber, #userName {
-    width: 100% !important;
-    margin-top: 6px;
-  }
-
-  #submitBtn {
-    width: 100%;
-    padding: 12px;
-    font-size: 1rem;
-  }
-}
 </style>
 </head>
 <body>
@@ -104,22 +58,28 @@
       <div class="row">
         <input id="origin" type="text" placeholder="産地 (例: 北海道)" class="flex" />
         <input id="pname" type="text" placeholder="商品名 (例: じゃがいも)" class="flex" />
+        <input id="spec" type="text" placeholder="規格 (例: L)" style="width:100px" />
         <input id="pack" type="number" min="1" placeholder="入り数 (例: 10)" style="width:100px" />
         <input id="price" type="number" min="0" step="1" placeholder="単価 (例: 80)" style="width:110px" />
         <button id="addBtn" class="btn">商品を追加</button>
       </div>
 
+      <div style="margin-top:10px;display:flex;gap:10px;align-items:center">
+        <label class="small">編集モードパスワード</label>
+        <input id="editPw" type="password" style="width:160px;padding:8px;border-radius:8px;border:1px solid #e3e7ee" placeholder="編集パスワードを入力" />
+        <button id="enableEditBtn" class="btn ghost">編集モードを有効化</button>
+        <div style="margin-left:auto" class="small">編集はパスワードで保護されています</div>
+      </div>
+
       <table id="prodTable">
-        <thead><tr><th>産地</th><th>商品名</th><th>入り数</th><th>単価</th><th>操作</th></tr></thead>
+        <thead><tr><th>産地</th><th>商品名</th><th>規格</th><th>入り数</th><th>単価</th><th>操作</th></tr></thead>
         <tbody></tbody>
       </table>
 
       <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button id="publishBtn" class="btn">公開ページを生成</button>
-        <button id="copyLocalBtn" class="btn ghost">ローカルに保存</button>
-        <button id="loadLocalBtn" class="btn ghost">ローカルから読み込み</button>
         <button id="exportCsvBtn" class="btn ghost">CSVエクスポート</button>
-        <div class="small" style="margin-left:auto">公開リンクはハッシュ部に埋め込まれます（サーバ不要）</div>
+        <div class="small" style="margin-left:auto">公開リンクはHashで切り替え（サーバ不要）</div>
       </div>
 
       <div style="margin-top:10px">
@@ -152,19 +112,17 @@
 </div>
 
 <script>
-// ----------------- 設定 ------------------
-const scriptURL = "https://script.google.com/macros/s/AKfycbxQMjdKyE3p-gLAP-P7RMZA8WDyo6hH2RQcFZVbsKuJlX_0malWWWmV1qlCS7S2UAQj/exec";
-const LS_KEY = 'pm_products_v1';
-// ------------------------------------------
+/* ----- ここにデプロイしたGASの Web App URL を貼ってください ----- */
+const scriptURL = 'https://script.google.com/macros/s/AKfycbwH8P0mBpe5vN1xZ_S9GXXT9hwIQ2RpMXOSeg6busyyI_Hq6WnavAViGnA1dakjMe_E/exec'; // 例: https://script.google.com/macros/s/xxxx/exec
+/* --------------------------------------------------------------- */
 
-let products = [];
+let products = []; // 読み込んだ製品データ
+let editEnabled = false; // 編集モードフラグ
 
-// --- DOM ---
+// DOM
 const tbody = document.querySelector('#prodTable tbody');
 const addBtn = document.getElementById('addBtn');
 const publishBtn = document.getElementById('publishBtn');
-const copyLocalBtn = document.getElementById('copyLocalBtn');
-const loadLocalBtn = document.getElementById('loadLocalBtn');
 const exportCsvBtn = document.getElementById('exportCsvBtn');
 const publicUrlEl = document.getElementById('publicUrl');
 const editorArea = document.getElementById('editorArea');
@@ -172,73 +130,145 @@ const viewerArea = document.getElementById('viewerArea');
 const productGrid = document.getElementById('productGrid');
 const grandTotalEl = document.getElementById('grandTotal');
 const msgEl = document.getElementById('msg');
+const enableEditBtn = document.getElementById('enableEditBtn');
 
-function saveLocal(){ localStorage.setItem(LS_KEY, JSON.stringify(products)); }
-function loadLocal(){ const raw = localStorage.getItem(LS_KEY); if(raw){ try{ products = JSON.parse(raw);}catch(e){products=[];} } }
+function setMsg(text, ok){
+  msgEl.style.display='block'; msgEl.className='message ' + (ok ? 'ok':'err'); msgEl.textContent = text;
+}
 
-function renderTable(){ tbody.innerHTML=''; products.forEach((p, i)=>{
-  const tr = document.createElement('tr');
-  tr.innerHTML = `<td>${escapeHtml(p.origin)}</td><td>${escapeHtml(p.name)}</td><td>${p.pack}</td><td>¥${Number(p.price).toLocaleString()}</td><td>
-    <button data-i='${i}' class='editBtn btn ghost'>編集</button>
-    <button data-i='${i}' class='delBtn btn ghost'>削除</button>
-  </td>`;
-  tbody.appendChild(tr);
-});
-attachTableHandlers();}
-
-function attachTableHandlers(){ document.querySelectorAll('.delBtn').forEach(b=>{
-  b.onclick = ()=>{ const i = +b.dataset.i; if(confirm('この商品を削除しますか？')){ products.splice(i,1); renderTable(); saveLocal(); }}
-});
-document.querySelectorAll('.editBtn').forEach(b=>{
-  b.onclick = ()=>{ const i=+b.dataset.i; const p = products[i];
-    const origin = prompt('産地', p.origin); if(origin===null) return;
-    const name = prompt('商品名', p.name); if(name===null) return;
-    const pack = prompt('入り数', p.pack); if(pack===null) return;
-    const price = prompt('単価', p.price); if(price===null) return;
-    products[i] = { origin: origin.trim(), name: name.trim(), pack: Number(pack)||1, price: Number(price)||0 };
-    renderTable(); saveLocal();
+// ---------- サーバから商品を取得 ----------
+async function loadProductsFromServer(){
+  try{
+    const res = await fetch(scriptURL + '?action=getProducts');
+    const json = await res.json();
+    if(json.ok){
+      products = json.items.map(it=>({
+        origin: it.origin || '',
+        name: it.name || '',
+        spec: it.spec || '',
+        pack: Number(it.pack) || 1,
+        price: Number(it.price) || 0,
+        _rowIndex: it._rowIndex
+      }));
+      renderTable();
+      // 公開モードに切り替え（hashがあればhash優先）
+      if(!tryLoadFromHash()){
+        editorArea.style.display='block';
+        viewerArea.style.display='none';
+      }
+    } else {
+      console.error(json);
+      alert('商品取得に失敗しました: ' + (json.error || 'unknown'));
+    }
+  }catch(e){
+    console.error(e);
+    alert('通信エラー：商品を取得できませんでした');
   }
-});}
+}
 
-addBtn.onclick = ()=>{
+// ---------- テーブル描画 ----------
+function renderTable(){
+  tbody.innerHTML='';
+  products.forEach((p,i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${escapeHtml(p.origin)}</td>
+      <td>${escapeHtml(p.name)}</td>
+      <td>${escapeHtml(p.spec)}</td>
+      <td>${p.pack}</td>
+      <td>¥${Number(p.price).toLocaleString()}</td>
+      <td>
+        <button data-i='${i}' class='editBtn btn ghost' ${editEnabled?'':'disabled'}>編集</button>
+        <button data-i='${i}' class='delBtn btn ghost' ${editEnabled?'':'disabled'}>削除</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+  attachTableHandlers();
+}
+
+function attachTableHandlers(){
+  document.querySelectorAll('.delBtn').forEach(b=>{
+    b.onclick = async ()=>{ const i = +b.dataset.i; if(!editEnabled){ alert('編集モードを有効にしてください'); return; }
+      if(!confirm('この商品を削除しますか？')) return;
+      const p = products[i];
+      // サーバへ削除要求
+      const body = { action:'delete', password: document.getElementById('editPw').value, _rowIndex: p._rowIndex };
+      const res = await postJSON(body);
+      if(res.ok){ products.splice(i,1); renderTable(); setMsg('削除しました', true); } else setMsg('削除失敗: '+(res.error||''), false);
+    };
+  });
+  document.querySelectorAll('.editBtn').forEach(b=>{
+    b.onclick = async ()=>{ const i=+b.dataset.i; if(!editEnabled){ alert('編集モードを有効にしてください'); return; }
+      const p = products[i];
+      const origin = prompt('産地', p.origin); if(origin===null) return;
+      const name = prompt('商品名', p.name); if(name===null) return;
+      const spec = prompt('規格', p.spec); if(spec===null) return;
+      const pack = prompt('入り数', p.pack); if(pack===null) return;
+      const price = prompt('単価', p.price); if(price===null) return;
+      const payload = { action:'edit', password: document.getElementById('editPw').value,
+                        _rowIndex: p._rowIndex, origin: origin.trim(), name: name.trim(), spec: spec.trim(),
+                        pack: Number(pack)||1, price: Number(price)||0 };
+      const res = await postJSON(payload);
+      if(res.ok){
+        products[i] = { ...products[i], origin: payload.origin, name: payload.name, spec: payload.spec, pack: payload.pack, price: payload.price };
+        renderTable(); setMsg('編集を保存しました', true);
+      } else setMsg('編集失敗: '+(res.error||''), false);
+    };
+  });
+}
+
+// ---------- 追加 ----------
+addBtn.onclick = async ()=>{
+  if(!editEnabled){ alert('編集モードを有効にしてください'); return; }
   const origin = document.getElementById('origin').value.trim();
   const name = document.getElementById('pname').value.trim();
+  const spec = document.getElementById('spec').value.trim();
   const pack = Number(document.getElementById('pack').value) || 1;
   const price = Number(document.getElementById('price').value) || 0;
   if(!origin || !name){ alert('産地と商品名は必須です'); return; }
-  products.push({ origin, name, pack, price });
-  document.getElementById('origin').value=''; document.getElementById('pname').value=''; document.getElementById('pack').value=''; document.getElementById('price').value='';
-  renderTable(); saveLocal();
+  const body = { action:'add', password: document.getElementById('editPw').value, origin, name, spec, pack, price };
+  const res = await postJSON(body);
+  if(res.ok){
+    await loadProductsFromServer();
+    document.getElementById('origin').value=''; document.getElementById('pname').value=''; document.getElementById('spec').value=''; document.getElementById('pack').value=''; document.getElementById('price').value='';
+    setMsg('商品を追加しました', true);
+  } else {
+    setMsg('追加に失敗しました: '+(res.error||''), false);
+  }
+};
+
+// ---------- Helper: POST JSON ----------
+async function postJSON(body){
+  try{
+    const res = await fetch(scriptURL, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const json = await res.json();
+    return json;
+  }catch(e){
+    console.error(e);
+    return { ok:false, error:'network' };
+  }
 }
 
-copyLocalBtn.onclick = ()=>{ saveLocal(); alert('ローカルに保存しました'); }
-loadLocalBtn.onclick = ()=>{ loadLocal(); renderTable(); alert('ローカルから読み込みました'); }
-exportCsvBtn.onclick = ()=>{ exportCsv(); }
-
-function exportCsv(){ if(!products.length){ alert('商品がありません'); return; }
-  const rows = [['産地','商品名','入り数','単価']]; products.forEach(p=> rows.push([p.origin,p.name,String(p.pack),String(p.price)]));
+// ---------- CSVエクスポート ----------
+exportCsvBtn.onclick = ()=>{
+  if(!products.length){ alert('商品がありません'); return; }
+  const rows = [['産地','商品名','規格','入り数','単価']];
+  products.forEach(p=> rows.push([p.origin,p.name,p.spec,String(p.pack),String(p.price)]));
   const csv = rows.map(r=> r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
   const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href=url; a.download='products.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
 }
 
-function generatePublicUrl(){ if(!products.length){ alert('商品がありません'); return; }
-  const payload = { items: products };
-  const b64 = btoa(encodeURIComponent(JSON.stringify(payload)));
-  const url = location.origin + location.pathname + '#data=' + b64;
-  publicUrlEl.value = url;
-  navigator.clipboard?.writeText(url).catch(()=>{});
-  alert('公開URLを生成しました（クリップボードにコピーされているかもしれません）');
-}
-
-publishBtn.onclick = ()=>{ generatePublicUrl(); }
-
-// -------- public view render ---------
-function renderPublicFromProducts(sourceProducts){ productGrid.innerHTML='';
+// ---------- 公開ページ描画 ----------
+function renderPublicFromProducts(sourceProducts){
+  productGrid.innerHTML='';
   sourceProducts.forEach((p,i)=>{
     const div = document.createElement('div'); div.className='product-card';
     div.innerHTML = `<div class='title'>${escapeHtml(p.name)}</div>
-      <div class='meta'>産地: ${escapeHtml(p.origin)} ・ 入り数: ${p.pack} ・ 単価: ¥${Number(p.price).toLocaleString()}</div>
+      <div class='meta'>産地: ${escapeHtml(p.origin)} ・ 規格: ${escapeHtml(p.spec)} ・ 入り数: ${p.pack} ・ 単価: ¥${Number(p.price).toLocaleString()}</div>
       <div style='margin-top:8px;display:flex;align-items:center;gap:8px'>数量:<input type='number' min='0' value='0' data-i='${i}' class='qty'></div>
       <div style='margin-top:6px;text-align:right;font-weight:700'>小計:<span class='rowSub'>¥0</span></div>`;
     productGrid.appendChild(div);
@@ -250,48 +280,65 @@ function attachQtyHandlers(){ document.querySelectorAll('.qty').forEach(inp=> in
 
 function updateGrandTotal(){ let sum = 0; document.querySelectorAll('.qty').forEach(inp=>{ const q = Number(inp.value)||0; const p = products[+inp.dataset.i]; sum += p.price * p.pack * q; }); grandTotalEl.textContent = '合計：¥' + sum.toLocaleString(); }
 
-// ---------- submit to Apps Script ----------
-async function submitOrder(){ const userNumber = document.getElementById('userNumber').value.trim(); const userName = document.getElementById('userName').value.trim();
+// ---------- 送信（注文） ----------
+async function submitOrder(){
+  const userNumber = document.getElementById('userNumber').value.trim(); const userName = document.getElementById('userName').value.trim();
   if(!userNumber || !userName){ alert('番号と名前を入力してください'); return; }
   const items = [];
   let total = 0;
-  document.querySelectorAll('.qty').forEach(inp=>{ const q = Number(inp.value)||0; if(q>0){ const p = products[+inp.dataset.i]; const subtotal = p.price * p.pack * q; items.push({ origin: p.origin, name: p.name, pack: p.pack, price: p.price, qty: q, subtotal }); total += subtotal; }});
+  document.querySelectorAll('.qty').forEach(inp=>{ const q = Number(inp.value)||0; if(q>0){ const p = products[+inp.dataset.i]; const subtotal = p.price * p.pack * q; items.push({ origin: p.origin, name: p.name, spec: p.spec, pack: p.pack, price: p.price, qty: q, subtotal }); total += subtotal; }});
   if(items.length===0){ alert('数量を1つ以上入力してください'); return; }
-  const payload = { userNumber, userName, items, total };
-  msgEl.style.display='block'; msgEl.className='message'; msgEl.textContent='送信中...';
-  try{
-    const res = await fetch(scriptURL, { method:'POST', body: JSON.stringify(payload) });
-    if(res.ok){ msgEl.classList.add('ok'); msgEl.textContent='✅ 送信が完了しました'; // clear quantities
-      document.querySelectorAll('.qty').forEach(i=>i.value='0'); updateGrandTotal();
-    } else { msgEl.classList.add('err'); msgEl.textContent='⚠️ 送信に失敗しました（サーバー応答エラー）'; }
-  }catch(e){ msgEl.classList.add('err'); msgEl.textContent='⚠️ 通信エラーが発生しました'; }
+  const payload = { action:'submitOrder', userNumber, userName, items, total };
+  setMsg('送信中...', true);
+  const res = await postJSON(payload);
+  if(res.ok){ setMsg('✅ 送信が完了しました', true); document.querySelectorAll('.qty').forEach(i=>i.value='0'); updateGrandTotal(); } else setMsg('⚠️ 送信に失敗しました', false);
 }
 
 document.getElementById('submitBtn').onclick = submitOrder;
 
-// ---------- helpers ----------
-function escapeHtml(s){ return String(s).replace(/[&<>"]+/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' })[c] || c); }
-
-// ---------- URL hash handling ----------
-function tryLoadFromHash(){ const h = location.hash; if(h && h.startsWith('#data=')){ try{ const b64 = h.slice(6); const json = decodeURIComponent(atob(b64)); const parsed = JSON.parse(json); if(parsed.items && Array.isArray(parsed.items)){
-      products = parsed.items.map(it=>({ origin: it.origin, name: it.name, pack: Number(it.pack)||1, price: Number(it.price)||0 }));
-      // switch to public
-      editorArea.style.display='none'; viewerArea.style.display='block'; renderPublicFromProducts(products); return true;
-    }
-  }catch(e){ console.warn('hash decode error', e); }
+// ---------- 編集モード有効化 ----------
+enableEditBtn.onclick = async ()=>{
+  const pw = document.getElementById('editPw').value || '';
+  if(!pw){ alert('パスワードを入力してください'); return; }
+  // 簡易的にサーバへ getProducts をパスワード付き POSTして認証
+  const res = await postJSON({ action:'getProducts', password: pw });
+  if(res && res.ok){
+    editEnabled = true;
+    setMsg('編集モードが有効になりました', true);
+    renderTable();
+  } else {
+    editEnabled = false;
+    setMsg('パスワードが違います', false);
   }
-  return false; }
+};
 
-// ---------- init ----------
-(function init(){ loadLocal(); renderTable();
-  if(!tryLoadFromHash()){
-    // editor visible
-    editorArea.style.display='block'; viewerArea.style.display='none';
+// ---------- ハッシュ優先読み込み（旧機能を保持） ----------
+function tryLoadFromHash(){
+  const h = location.hash;
+  if(h && h.startsWith('#data=')){
+    try{
+      const b64 = h.slice(6);
+      const json = decodeURIComponent(atob(b64));
+      const parsed = JSON.parse(json);
+      if(parsed.items && Array.isArray(parsed.items)){
+        products = parsed.items.map(it=>({ origin: it.origin, name: it.name, spec: it.spec||'', pack: Number(it.pack)||1, price: Number(it.price)||0 }));
+        editorArea.style.display='none'; viewerArea.style.display='block'; renderPublicFromProducts(products); return true;
+      }
+    }catch(e){ console.warn('hash decode error', e); }
   }
+  return false;
+}
+
+// ---------- 初期化 ----------
+(function init(){
+  // まずサーバから読み込む（hashがあれば上書き）
+  loadProductsFromServer();
 })();
 
+// ---------- helpers ----------
+function escapeHtml(s){ return String(s).replace(/[&<>"]+/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' })[c] || c); }
+function tryParseInt(v, def){ const n = Number(v); return isNaN(n)?def:n; }
+
 </script>
-
-
 </body>
 </html>
